@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Berenimm ♥</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#000;
+    overflow:hidden;
+    height:100vh; 
+    width:100vw;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+    -webkit-user-select:none;
+    position:fixed;
+  }
+  canvas { 
+    display:block; 
+    position:fixed; 
+    top:0; 
+    left:0;
+    -webkit-transform:translateZ(0);
+    transform:translateZ(0);
+  }
+
+  #tap-hint {
+    position:fixed; 
+    bottom:36px; 
+    left:50%;
+    transform:translateX(-50%);
+    color:rgba(255,255,255,0.3);
+    font-family:'Montserrat',sans-serif;
+    font-size:clamp(16px, 4vw, 20px);
+    letter-spacing:2px;
+    z-index:10; 
+    pointer-events:none;
+    opacity:0;
+    animation:hintPulse 2.4s ease-in-out 4.5s infinite;
+  }
+  @keyframes hintPulse { 0%,100%{opacity:0} 50%{opacity:1} }
+  
+  #music-info {
+    position:fixed; 
+    top:24px; 
+    left:50%;
+    transform:translateX(-50%);
+    color:rgba(255,255,255,0.5);
+    font-family:'Montserrat',sans-serif;
+    font-size:clamp(14px, 3.5vw, 18px);
+    z-index:10;
+    pointer-events:none;
+    opacity:0;
+    transition: opacity 0.5s;
+    white-space:nowrap;
+  }
+  #music-info.show { opacity:1; }
+  
+  @media (max-width: 768px) {
+    #tap-hint { bottom:24px; }
+    #music-info { top:16px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="tap-hint">💜 ekrana dokunun</div>
+<div id="music-info">♪ Lord Huron - The Night We Met</div>
+<script>
+(function(){
+
+// ============================================================
+//  Lord Huron - The Night We Met (Real song)
+// ============================================================
+let audioElement = null;
+let musicStarted = false;
+let audioUnlocked = false;
+
+// Audio elementini sayfa yüklendiğinde hazırla
+window.addEventListener('load', function() {
+  audioElement = new Audio();
+  audioElement.src = 'music.mp3';
+  audioElement.loop = true;
+  audioElement.volume = 0.5;
+  audioElement.preload = 'auto';
+  
+  console.log('Audio initialized');
+  
+  audioElement.addEventListener('loadedmetadata', function() {
+    console.log('Music duration:', audioElement.duration);
+  });
+  
+  audioElement.addEventListener('error', function(e) {
+    console.error('Audio error:', audioElement.error);
+  });
+});
+
+function startMusic(){
+  if(!audioElement) {
+    console.log('Audio not ready');
+    return;
+  }
+  
+  console.log('Start music called, started:', musicStarted, 'unlocked:', audioUnlocked);
+  
+  // Android Chrome için: İlk tıklamada audio'yu unlock et
+  if(!audioUnlocked) {
+    audioUnlocked = true;
+    // Sessiz bir play/pause ile audio context'i unlock et
+    audioElement.play().then(() => {
+      console.log('Audio unlocked!');
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      // Şimdi gerçek müziği başlat
+      if(!musicStarted) {
+        playMusicFrom30();
+      }
+    }).catch(err => {
+      console.error('Unlock failed:', err.message);
+    });
+    return;
+  }
+  
+  // Zaten unlocked ise direkt çal
+  if(!musicStarted) {
+    playMusicFrom30();
+  }
+}
+
+function playMusicFrom30() {
+  console.log('Playing music from beginning...');
+  
+  // Metadata yüklenmişse direkt başlat
+  if(audioElement.readyState >= 1) {
+    audioElement.currentTime = 0; // En baştan başlat
+    audioElement.play()
+      .then(() => {
+        console.log('Music playing!');
+        musicStarted = true;
+        document.getElementById('music-info').classList.add('show');
+        setTimeout(() => {
+          document.getElementById('music-info').classList.remove('show');
+        }, 4500);
+      })
+      .catch(err => console.error('Play failed:', err.message));
+  } else {
+    // Metadata henüz yüklenmediyse bekle
+    console.log('Waiting for metadata...');
+    audioElement.addEventListener('loadedmetadata', () => {
+      audioElement.currentTime = 0; // En baştan başlat
+      audioElement.play()
+        .then(() => {
+          musicStarted = true;
+          document.getElementById('music-info').classList.add('show');
+          setTimeout(() => {
+            document.getElementById('music-info').classList.remove('show');
+          }, 4500);
+        })
+        .catch(err => console.error('Play failed:', err.message));
+    }, { once: true });
+  }
+}
+
+// ============================================================
+//  CANVAS (Mobile optimized)
+// ============================================================
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d', { alpha: false });
+let W,H;
+let dpr = window.devicePixelRatio || 1;
+// Limit DPR on mobile for performance
+if(dpr > 2) dpr = 2;
+
+function resize(){ 
+  W=window.innerWidth; 
+  H=window.innerHeight;
+  canvas.width=W*dpr; 
+  canvas.height=H*dpr;
+  canvas.style.width=W+'px';
+  canvas.style.height=H+'px';
+  ctx.scale(dpr,dpr);
+}
+resize();
+window.addEventListener('resize',()=>{ resize(); rebuildTextParticles(); });
+
+// ============================================================
+//  GENİŞLETİLMİŞ RENKLER (16 farklı renk paleti)
+// ============================================================
+const colorSets=[
+  {p:'#e84393', t:'#fd79a8', bg:[232,67,147,0.035]},   // hot pink
+  {p:'#fd79a8', t:'#e84393', bg:[253,121,168,0.035]},  // light pink
+  {p:'#a29bfe', t:'#dfe6e9', bg:[162,155,254,0.04]},   // lavender
+  {p:'#6c5ce7', t:'#a29bfe', bg:[108,92,231,0.04]},    // purple
+  {p:'#00cec9', t:'#81ecec', bg:[0,206,201,0.035]},    // cyan
+  {p:'#e17055', t:'#fab1a0', bg:[225,112,85,0.035]},   // coral
+  {p:'#fdcb6e', t:'#ffeaa7', bg:[253,203,110,0.035]},  // yellow
+  {p:'#55efc4', t:'#dfe6e9', bg:[85,239,196,0.035]},   // mint
+  {p:'#ff7675', t:'#fab1a0', bg:[255,118,117,0.035]},  // red
+  {p:'#74b9ff', t:'#a29bfe', bg:[116,185,255,0.04]},   // sky blue
+  {p:'#fd79a8', t:'#fdcb6e', bg:[253,121,168,0.035]},  // pink-yellow
+  {p:'#e17055', t:'#fdcb6e', bg:[225,112,85,0.035]},   // orange
+  {p:'#00b894', t:'#55efc4', bg:[0,184,148,0.035]},    // green
+  {p:'#d63031', t:'#ff7675', bg:[214,48,49,0.035]},    // deep red
+  {p:'#0984e3', t:'#74b9ff', bg:[9,132,227,0.04]},     // blue
+  {p:'#6c5ce7', t:'#fd79a8', bg:[108,92,231,0.04]},    // purple-pink
+];
+let colorIdx=0, cur=colorSets[0];
+let bgTarget=[232,67,147,0.035];
+
+// ============================================================
+//  KALP FORMÜL
+// ============================================================
+function heartPt(t,cx,cy,sz){
+  const x=16*Math.pow(Math.sin(t),3);
+  const y=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
+  return {x:cx+x*sz, y:cy+y*sz};
+}
+function getHeartTarget(){
+  const baseSize=Math.min(W,H)*0.033;
+  // Mobilde %10 daha küçük
+  const mobileFactor = isMobile ? 0.9 : 1.0;
+  const sz=baseSize * mobileFactor;
+  const layer=Math.random();
+  const s=sz*(0.84+layer*0.16);
+  const t=Math.random()*Math.PI*2;
+  const pt=heartPt(t,W/2,H/2,s);
+  const nx=Math.sin(t)*(layer-0.5)*6;
+  const ny=Math.cos(t)*(layer-0.5)*6;
+  return {x:pt.x+nx, y:pt.y+ny};
+}
+
+// ============================================================
+//  KÜÇÜK KALP ÇIZICI
+// ============================================================
+function drawHeartShape(c,x,y,s){
+  c.beginPath();
+  c.moveTo(x, y+s*0.3);
+  c.bezierCurveTo(x-s*1.1, y-s*0.6, x-s*1.1, y-s*1.5, x, y-s*0.6);
+  c.bezierCurveTo(x+s*1.1, y-s*1.5, x+s*1.1, y-s*0.6, x, y+s*0.3);
+  c.fill();
+}
+
+// ============================================================
+//  BIG HEART PARTIKELLER
+// ============================================================
+// Mobile için partikel sayısını optimize et
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const HEART_COUNT = isMobile ? 450 : 700;
+let heartParticles=[];
+
+class HeartParticle{
+  constructor(init){
+    this.size=1.8+Math.random()*3.6;
+    this.alpha=0.45+Math.random()*0.55;
+    this.speed=(0.02+Math.random()*0.04)*0.9;
+    this.setTarget();
+    if(init){
+      const a=Math.random()*Math.PI*2;
+      const d=Math.max(W,H)*1.5;
+      this.x=W/2+Math.cos(a)*d;
+      this.y=H/2+Math.sin(a)*d;
+    } else { this.x=this.tx; this.y=this.ty; }
+  }
+  setTarget(){ const tg=getHeartTarget(); this.tx=tg.x; this.ty=tg.y; }
+  scatter(){
+    const a=Math.random()*Math.PI*2;
+    const d=90+Math.random()*240;
+    this.tx=this.x+Math.cos(a)*d;
+    this.ty=this.y+Math.sin(a)*d;
+  }
+  reform(){ this.setTarget(); }
+  update(){ this.x+=(this.tx-this.x)*this.speed; this.y+=(this.ty-this.y)*this.speed; }
+  draw(){
+    ctx.save();
+    ctx.globalAlpha=this.alpha;
+    ctx.fillStyle=cur.p;
+    ctx.shadowColor=cur.p;
+    ctx.shadowBlur=4;
+    drawHeartShape(ctx,this.x,this.y,this.size);
+    ctx.restore();
+  }
+}
+
+for(let i=0;i<HEART_COUNT;i++) heartParticles.push(new HeartParticle(true));
+
+// ============================================================
+//  TEXT PARTICLE SISTEMI (AKICI INTRO İÇİN GELİŞTİRİLMİŞ)
+// ============================================================
+let textParticles=[];
+let textTargets=[];
+let fontReady=false;
+
+document.fonts.ready.then(()=>{ document.fonts.load('400 40px Great Vibes').then(()=>{ fontReady=true; rebuildTextParticles(); }); });
+
+function sampleTextPixels(){
+  const fontSize = isMobile ? Math.min(W,H)*0.153*0.7 : Math.min(W,H)*0.136*0.7;
+  const oc=document.createElement('canvas');
+  oc.width=W; oc.height=H;
+  const ox=oc.getContext('2d');
+  ox.clearRect(0,0,W,H);
+  ox.font=`700 ${fontSize}px 'Montserrat', sans-serif`;
+  ox.textAlign='left';
+  ox.textBaseline='middle';
+  ox.fillStyle='#fff';
+
+  // --- Toplam "Berenimm" genişliğini ölçüşüm ---
+  const fullMetrics = ox.measureText('Berenimm');
+  const fullW = fullMetrics.width;
+  const textLeft = W/2 - fullW/2;
+
+  // --- "Beren" yazı ölçüşümleri ---
+  const berenW = ox.measureText('Beren').width;
+  // --- "i" harfi ölçüşümleri ---
+  const bereniW = ox.measureText('Bereni').width;
+  const iCharW = bereniW - berenW;
+  // --- "mm" ölçüşümleri ---
+  const mmW = ox.measureText('mm').width;
+
+  // Tüm "Berenimm" yaz — Great Vibes fontuyla
+  ox.textAlign='center';
+  ox.shadowColor='#fff';
+  ox.shadowBlur=2.5;
+  ox.fillText('Berenimm', W/2, H/2);
+  ox.shadowBlur=0;
+  ox.fillText('Berenimm', W/2+0.5, H/2+0.5);
+  ox.fillText('Berenimm', W/2-0.5, H/2-0.5);
+  ox.fillText('Berenimm', W/2+0.5, H/2-0.5);
+  ox.fillText('Berenimm', W/2-0.5, H/2+0.5);
+
+  // --- "i" noktasını bul ---
+  const iCenterX = textLeft + berenW + iCharW / 2;
+
+  // Piksel tarama ile noktanın gerçek Y'sini bul
+  const scanImgData = ox.getImageData(0, 0, W, H);
+  const scanD = scanImgData.data;
+
+  const scanLeft = Math.floor(iCenterX - iCharW * 0.6);
+  const scanRight = Math.ceil(iCenterX + iCharW * 0.6);
+  const scanTopStart = Math.floor(H/2 - fontSize * 0.7);
+  const scanTopEnd = Math.floor(H/2 - fontSize * 0.2);
+
+  let dotTopY = -1, dotBottomY = -1;
+  // Üstten aşağı tarayarak nokta'nın ilk dolu satırını bul
+  for(let sy = scanTopStart; sy < scanTopEnd; sy++){
+    let found = false;
+    for(let sx = scanLeft; sx <= scanRight; sx++){
+      if(scanD[(sy * W + sx)*4 + 3] > 50){ found = true; break; }
+    }
+    if(found){ dotTopY = sy; break; }
+  }
+  // Nokta altını bul: dotTopY'den aşağı ilk boş satır
+  if(dotTopY > -1){
+    for(let sy = dotTopY; sy < scanTopEnd; sy++){
+      let found = false;
+      for(let sx = scanLeft; sx <= scanRight; sx++){
+        if(scanD[(sy * W + sx)*4 + 3] > 50){ found = true; break; }
+      }
+      if(!found){ dotBottomY = sy; break; }
+    }
+    if(dotBottomY === -1) dotBottomY = scanTopEnd;
+  }
+
+  // Nokta bölgesini sil
+  if(dotTopY > -1){
+    const margin = 2;
+    ox.clearRect(scanLeft - margin, dotTopY - margin, (scanRight - scanLeft) + margin*2, (dotBottomY - dotTopY) + margin*2);
+  }
+
+  // Kalp çiz — noktanın yerine
+  const dotCenterY = (dotTopY + dotBottomY) / 2;
+  const dotH = dotBottomY - dotTopY;
+  const heartSize = dotH * 0.72;
+  const hx = iCenterX + heartSize * 0.20; // Daha dengeli konumlandır
+  const hy = dotCenterY;
+
+  ox.fillStyle='#fff';
+  ox.shadowColor='#fff';
+  ox.shadowBlur=2.5;
+  
+  ox.beginPath();
+  ox.moveTo(hx, hy + heartSize*0.3);
+  // Sol taraf
+  ox.bezierCurveTo(hx - heartSize*1.05, hy - heartSize*0.6, hx - heartSize*1.05, hy - heartSize*1.5, hx, hy - heartSize*0.6);
+  // Sağ taraf (tamamen simetrik)
+  ox.bezierCurveTo(hx + heartSize*1.05, hy - heartSize*1.5, hx + heartSize*1.05, hy - heartSize*0.6, hx, hy + heartSize*0.3);
+  ox.fill();
+  
+  ox.shadowBlur=0;
+  
+  ox.beginPath();
+  ox.moveTo(hx, hy + heartSize*0.3);
+  ox.bezierCurveTo(hx - heartSize*1.05, hy - heartSize*0.6, hx - heartSize*1.05, hy - heartSize*1.5, hx, hy - heartSize*0.6);
+  ox.bezierCurveTo(hx + heartSize*1.05, hy - heartSize*1.5, hx + heartSize*1.05, hy - heartSize*0.6, hx, hy + heartSize*0.3);
+  ox.fill();
+
+  const imgData=ox.getImageData(0,0,W,H);
+  const d=imgData.data;
+  const pts=[];
+  const step=isMobile?3:2;
+  for(let y=0;y<H;y+=step){
+    for(let x=0;x<W;x+=step){
+      if(d[(y*W+x)*4+3]>50) pts.push({x,y});
+    }
+  }
+  return pts;
+}
+
+function rebuildTextParticles(){
+  if(!fontReady) return;
+  const basePts=sampleTextPixels();
+  textTargets=basePts.slice();
+  const extra=Math.round(basePts.length*0.30);
+  for(let i=0;i<extra;i++){
+    const s=basePts[Math.floor(Math.random()*basePts.length)];
+    textTargets.push({x:s.x+(Math.random()-0.5)*3, y:s.y+(Math.random()-0.5)*3});
+  }
+  const need=textTargets.length;
+  while(textParticles.length<need){
+    textParticles.push(new TextParticle(true));
+  }
+  textParticles.length=need;
+  textParticles.forEach((p,i)=>{
+    p.homeX=textTargets[i].x;
+    p.homeY=textTargets[i].y;
+    p.setIntroTarget();
+  });
+}
+
+class TextParticle{
+  constructor(init){
+    this.size=isMobile?(0.7+Math.random()*0.8):(0.6+Math.random()*0.7);
+    this.alpha=0.85+Math.random()*0.15;
+    this.speed=(0.028+Math.random()*0.038)*0.9;
+    this.homeX=W/2; 
+    this.homeY=H/2;
+    this.tx=this.homeX; 
+    this.ty=this.homeY;
+    const angle=Math.random()*Math.PI*2;
+    const distance=Math.max(W,H)*1.2;
+    this.x=W/2+Math.cos(angle)*distance;
+    this.y=H/2+Math.sin(angle)*distance;
+    this.introPhase=0;
+    this.landY=0;
+  }
+  setIntroTarget(){
+    this.landY=H*0.38 + (Math.random()-0.5)*H*0.08;
+    this.tx=this.homeX+(Math.random()-0.5)*60;
+    this.ty=this.landY;
+    this.introPhase=0;
+  }
+  setTarget(){ 
+    this.tx=this.homeX; 
+    this.ty=this.homeY; 
+  }
+  scatter(){
+    const a=Math.random()*Math.PI*2;
+    const d=60+Math.random()*180;
+    this.tx=this.x+Math.cos(a)*d;
+    this.ty=this.y+Math.sin(a)*d;
+  }
+  reform(){ this.setTarget(); }
+  update(){ 
+    this.x+=(this.tx-this.x)*this.speed; 
+    this.y+=(this.ty-this.y)*this.speed; 
+  }
+  draw(){
+    ctx.save();
+    ctx.globalAlpha=this.alpha;
+    ctx.fillStyle=cur.t;
+    ctx.shadowColor=cur.t;
+    ctx.shadowBlur=3;
+    drawHeartShape(ctx,this.x,this.y,this.size);
+    ctx.restore();
+  }
+}
+
+// ============================================================
+//  BURST PARTIKELLER
+// ============================================================
+let bursts=[];
+class BurstP{
+  constructor(x,y,col){
+    this.x=x; this.y=y; this.col=col;
+    const a=Math.random()*Math.PI*2;
+    const sp=(2+Math.random()*4.5)*0.9;
+    this.vx=Math.cos(a)*sp; this.vy=Math.sin(a)*sp;
+    this.life=1; this.decay=(0.01+Math.random()*0.016)*0.9;
+    this.size=2+Math.random()*3;
+  }
+  update(){ this.x+=this.vx; this.y+=this.vy; this.vy+=0.04; this.life-=this.decay; }
+  draw(){
+    if(this.life<=0) return;
+    ctx.save();
+    ctx.globalAlpha=this.life*0.8;
+    ctx.fillStyle=this.col;
+    ctx.shadowColor=this.col;
+    ctx.shadowBlur=3;
+    drawHeartShape(ctx,this.x,this.y,this.size*this.life);
+    ctx.restore();
+  }
+}
+function spawnBurst(cx,cy,count){
+  const burstCount = isMobile ? Math.floor(count*0.6) : count; // Mobile'da daha az burst
+  for(let i=0;i<burstCount;i++) bursts.push(new BurstP(cx,cy,cur.p));
+}
+
+// ============================================================
+//  BASİTLEŞTİRİLMİŞ INTRO: Direkt yerlerine otur
+// ============================================================
+let introDone=false;
+let introStartTime=0;
+const INTRO_DURATION=900;
+
+function processIntro(now){
+  if(introDone) return;
+  
+  if(introStartTime===0){
+    introStartTime=now;
+    // Tüm partikelleri direkt hedeflerine yönlendir
+    textParticles.forEach(p=>{
+      p.tx=p.homeX;
+      p.ty=p.homeY;
+      p.speed=0.12;
+    });
+  }
+  
+  // Belirli bir süre sonra intro'yu bitir
+  if(now-introStartTime>INTRO_DURATION){
+    introDone=true;
+    // Hızı normale döndür
+    textParticles.forEach(p=>{
+      p.speed=(0.028+Math.random()*0.038)*0.9;
+    });
+  }
+}
+
+// ============================================================
+//  TAP → OPTIMIZE EDİLMİŞ
+// ============================================================
+let tapLocked=false;
+let isScattering=false;
+
+function onTap(e){
+  e.preventDefault();
+  startMusic();
+  if(tapLocked || isScattering || !introDone) return; // İntro bitene kadar tap yasak
+  tapLocked=true;
+  isScattering=true;
+
+  const scatterBatchSize = isMobile ? 30 : 50;
+  
+  let scatteredHeart=0;
+  let scatteredText=0;
+  
+  function scatterBatch(){
+    for(let i=0; i<scatterBatchSize && scatteredHeart<heartParticles.length; i++){
+      heartParticles[scatteredHeart++].scatter();
+    }
+    for(let i=0; i<scatterBatchSize && scatteredText<textParticles.length; i++){
+      textParticles[scatteredText++].scatter();
+    }
+    
+    if(scatteredHeart<heartParticles.length || scatteredText<textParticles.length){
+      requestAnimationFrame(scatterBatch);
+    } else {
+      isScattering=false;
+    }
+  }
+  scatterBatch();
+
+  setTimeout(()=>{
+    colorIdx=(colorIdx+1)%colorSets.length;
+    cur=colorSets[colorIdx];
+    bgTarget=cur.bg;
+    
+    let reformedHeart=0;
+    let reformedText=0;
+    
+    function reformBatch(){
+      for(let i=0; i<scatterBatchSize && reformedHeart<heartParticles.length; i++){
+        heartParticles[reformedHeart++].reform();
+      }
+      for(let i=0; i<scatterBatchSize && reformedText<textParticles.length; i++){
+        textParticles[reformedText++].reform();
+      }
+      
+      if(reformedHeart<heartParticles.length || reformedText<textParticles.length){
+        requestAnimationFrame(reformBatch);
+      }
+    }
+    reformBatch();
+    
+    setTimeout(()=>{ tapLocked=false; },1200);
+  },750);
+}
+canvas.addEventListener('click',onTap);
+canvas.addEventListener('touchstart',onTap,{passive:false});
+
+// ============================================================
+//  BG RENK GEÇIŞI
+// ============================================================
+let bgAlpha=0;
+let bgFrom=[0,0,0,0];
+let bgTo=[232,67,147,0.035];
+
+function lerp(a,b,t){ return a+(b-a)*t; }
+
+// ============================================================
+//  ANA LOOP (Mobile optimized)
+// ============================================================
+let lastFrameTime=0;
+const targetFPS = isMobile ? 50 : 60; // Mobile'da biraz düşük FPS
+const frameInterval=1000/targetFPS;
+
+function animate(now){
+  // Frame rate control
+  if(now-lastFrameTime<frameInterval){
+    requestAnimationFrame(animate);
+    return;
+  }
+  lastFrameTime=now;
+
+  // --- BG ---
+  bgTo=bgTarget;
+  bgAlpha=Math.min(1, bgAlpha+0.015);
+  const r=Math.round(lerp(bgFrom[0],bgTo[0],bgAlpha));
+  const g=Math.round(lerp(bgFrom[1],bgTo[1],bgAlpha));
+  const b=Math.round(lerp(bgFrom[2],bgTo[2],bgAlpha));
+  const a=lerp(bgFrom[3],bgTo[3],bgAlpha).toFixed(3);
+  if(bgAlpha>=1){ bgFrom=bgTo.slice(); bgAlpha=0; }
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle=`rgba(${r},${g},${b},${a})`;
+  ctx.fillRect(0,0,W,H);
+
+  // intro
+  processIntro(now);
+
+  // bursts
+  for(let i=bursts.length-1;i>=0;i--){
+    const bp=bursts[i]; bp.update();
+    if(bp.life<=0){ bursts[i]=bursts[bursts.length-1]; bursts.length--; continue; }
+    if(bp.x>-80&&bp.x<W+80&&bp.y>-80&&bp.y<H+80) bp.draw();
+  }
+
+  // big heart
+  for(let i=0,len=heartParticles.length;i<len;i++){
+    const p=heartParticles[i]; p.update();
+    if(p.x>-80&&p.x<W+80&&p.y>-80&&p.y<H+80) p.draw();
+  }
+
+  // text particles
+  for(let i=0,len=textParticles.length;i<len;i++){
+    const p=textParticles[i]; p.update();
+    if(p.x>-80&&p.x<W+80&&p.y>-80&&p.y<H+80) p.draw();
+  }
+
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+})();
+</script>
+</body>
+</html>
